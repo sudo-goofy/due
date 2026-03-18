@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Datenübertragung & Präfixe | Interaktiver Explainer</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React & ReactDOM (Production) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel für die On-the-fly Übersetzung von JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Framer Motion für die fließenden Formel-Animationen -->
+  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+  <style>
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: monospace;
+      background-color: #faf9f6;
+    }
+
+    .select-none {
+      user-select: none;
+    }
+
+    /* Tooltip Styles */
+    .tt-wrap {
+      position: relative;
+      display: inline;
+      cursor: help;
+      border-bottom: 2px dotted #888;
+    }
+
+    .tt-wrap:hover {
+      border-bottom-color: #000;
+    }
+
+    .tt-bubble {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.4;
+      padding: 8px 12px;
+      border: 2px solid #000;
+      border-radius: 4px;
+      white-space: normal;
+      width: max-content;
+      max-width: 260px;
+      z-index: 9999;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 1);
+      text-align: left;
+    }
+
+    .tt-bubble::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -6px;
+      border-width: 6px;
+      border-style: solid;
+      border-color: #1a1a2e transparent transparent transparent;
+    }
+
+    .tt-wrap:hover .tt-bubble {
+      visibility: visible;
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+    const { motion } = window.Motion;
+
+    // 1. Bereinigte Inline SVGs (nur die, die wirklich benutzt werden)
+    const IconWrapper = ({ children, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        {children}
+      </svg>
+    );
+
+    const Icons = {
+      HardDrive: (props) => <IconWrapper {...props}><line x1="22" y1="12" x2="2" y2="12" /><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /><line x1="6" y1="16" x2="6.01" y2="16" /><line x1="10" y1="16" x2="10.01" y2="16" /></IconWrapper>,
+      Clock: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></IconWrapper>,
+      Server: (props) => <IconWrapper {...props}><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></IconWrapper>,
+      Users: (props) => <IconWrapper {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></IconWrapper>,
+      Cpu: (props) => <IconWrapper {...props}><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 1v3" /><path d="M15 1v3" /><path d="M9 20v3" /><path d="M15 20v3" /><path d="M20 9h3" /><path d="M20 14h3" /><path d="M1 9h3" /><path d="M1 14h3" /></IconWrapper>,
+      Wifi: (props) => <IconWrapper {...props}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></IconWrapper>,
+      ArrowRightLeft: (props) => <IconWrapper {...props}><path d="m16 3 4 4-4 4" /><path d="M20 7H4" /><path d="m8 21-4-4 4-4" /><path d="M4 17h16" /></IconWrapper>,
+      MousePointer2: (props) => <IconWrapper {...props}><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.143 1.143l-1.58 6.124a.5.5 0 0 1-.947.063z" /></IconWrapper>,
+      Calculator: (props) => <IconWrapper {...props}><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" /></IconWrapper>,
+      Zap: (props) => <IconWrapper {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></IconWrapper>,
+      BookOpen: (props) => <IconWrapper {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></IconWrapper>,
+      Puzzle: (props) => <IconWrapper {...props}><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.611c-.47.47-1.088.706-1.705.706s-1.233-.235-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.965a2.5 2.5 0 1 1-3.261-3.262c.46-.18.89-.527.965-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568C.47 13.235.235 12.618.235 12s.235-1.233.706-1.704l1.611-1.611a.98.98 0 0 1 .837-.276c.47.07.802.48.968.925a2.501 2.501 0 1 0 3.214-3.214c-.446-.166-.855-.497-.925-.968a.979.979 0 0 1 .276-.837l1.61-1.611C8.997 2.235 9.615 2 10.232 2s1.233.235 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.965a2.5 2.5 0 1 1 3.261 3.262c-.46.18-.89.527-.965 1.02z" /></IconWrapper>
+    };
+
+    const {
+      HardDrive, Clock, Server, Users, Cpu,
+      Wifi, ArrowRightLeft, MousePointer2, Calculator, Zap, BookOpen, Puzzle
+    } = Icons;
+
+    // Tooltip-Komponente für Fachbegriffe
+    const Tip = ({ children, text }) => (
+      <span className="tt-wrap">
+        {children}
+        <span className="tt-bubble">{text}</span>
+      </span>
+    );
+
+    // 2. Die Haupt-Anwendung
+    const App = () => {
+      // Den Schieberegler stufenlos machen, damit er weich der Maus folgt
+      const [sliderValue, setSliderValue] = useState(2);
+      // Den logischen Index runden, um die richtigen Boxen zu markieren
+      const prefixIndex = Math.round(sliderValue);
+
+      const [worldView, setWorldView] = useState('human');
+      const [activeTag, setActiveTag] = useState(null);
+
+      const [calcMode, setCalcMode] = useState('time');
+      const [dataAmount, setDataAmount] = useState(150);
+      const [dataUnit, setDataUnit] = useState('GiB');
+      const [bandwidth, setBandwidth] = useState(250);
+      const [bandwidthUnit, setBandwidthUnit] = useState('Mbit/s');
+      const [targetMinutes, setTargetMinutes] = useState(60);
+
+      const prefixes = [
+        { siLabel: 'Kilo', binLabel: 'Kibi', siName: 'KB', binName: 'KiB', siExp: '10³', binExp: '2¹⁰', siValStr: "1.000", binValStr: "1.024", diff: 2.4 },
+        { siLabel: 'Mega', binLabel: 'Mebi', siName: 'MB', binName: 'MiB', siExp: '10⁶', binExp: '2²⁰', siValStr: "1.000.000", binValStr: "1.048.576", diff: 4.86 },
+        { siLabel: 'Giga', binLabel: 'Gibi', siName: 'GB', binName: 'GiB', siExp: '10⁹', binExp: '2³⁰', siValStr: "1.000.000.000", binValStr: "1.073.741.824", diff: 7.37 },
+        { siLabel: 'Tera', binLabel: 'Tebi', siName: 'TB', binName: 'TiB', siExp: '10¹²', binExp: '2⁴⁰', siValStr: "1.000.000.000.000", binValStr: "1.099.511.627.776", diff: 9.95 },
+        { siLabel: 'Peta', binLabel: 'Pebi', siName: 'PB', binName: 'PiB', siExp: '10¹⁵', binExp: '2⁵⁰', siValStr: "1.000.000.000.000.000", binValStr: "1.125.899.906.842.624", diff: 12.59 }
+      ];
+
+      const worldData = {
+        human: {
+          title: "Menschliche Logik",
+          subtitle: "Basis 10 (Dezimal)",
+          icon: <Users className="w-10 h-10" />,
+          text: <>Wir haben 10 Finger, also rechnen wir in 1000ern. Ein <Tip text="1 Kilobyte = 1.000 Byte (dezimal). Nicht zu verwechseln mit 1 Kibibyte (KiB) = 1.024 Byte (binär).">Kilobyte</Tip> sind für uns glatte 1.000 <Tip text="1 Byte = 8 Bit. Die grundlegende Einheit, um Daten zu messen.">Byte</Tip>. Einfach, sauber, <Tip text="Système International d'unités — das internationale Einheitensystem, das weltweit für Maßeinheiten gilt (Meter, Kilogramm, etc.).">SI</Tip>-Standard.</>,
+          users: [
+            { id: "h1", name: "Festplatten-Hersteller", detail: "Hersteller Drucken '1 TB' auf die Packung. Warum? Weil 1.000 Milliarden Byte nach viel mehr klingt als 931 GiB. Es ist legal, normgerecht und exzellentes Marketing!" },
+            { id: "h2", name: "Internet-Provider", detail: <>Übertragungsraten (<Tip text="Megabit pro Sekunde — eine Geschwindigkeitseinheit für die Datenübertragung. 1 Mbit/s = 1.000.000 Bit pro Sekunde. Achtung: Bit, nicht Byte!">Mbit/s</Tip>) werden in der Nachrichtentechnik immer <Tip text="Auf dem Zehnersystem basierend (Faktor 1.000). Im Alltag die gewohnte Zählweise.">dezimal</Tip> gemessen. Ein 250 Mbit Anschluss liefert exakt 250 Millionen <Tip text="Die kleinste Informationseinheit: Entweder 0 oder 1. Acht Bit ergeben ein Byte.">Bits</Tip> pro Sekunde.</> },
+            { id: "h3", name: "Apple macOS", detail: "Apple hatte 2009 genug von der Verwirrung. Seit Mac OS X Snow Leopard rechnet das System konsequent dezimal. Eine gekaufte 1 TB Platte zeigt im Mac exakt 1 TB an!" }
+          ]
+        },
+        machine: {
+          title: "Maschinen-Logik",
+          subtitle: "Basis 2 (Binär)",
+          icon: <Cpu className="w-10 h-10" />,
+          text: <>Computer kennen nur Strom AN (1) oder AUS (0). Speicher wird über <Tip text="Elektrische Leitungen im Prozessor, die eine Speicheradresse als Binärzahl codieren. n Leitungen können 2ⁿ Adressen ansprechen.">Adressleitungen</Tip> verwaltet, was zwingend zu <Tip text="Potenzen der Zahl 2: 2¹=2, 2²=4, 2³=8, ... 2¹⁰=1.024. So ist Hardware physisch aufgebaut.">Zweierpotenzen</Tip> (2, 4, 8, 16... 1024) führt.</>,
+          users: [
+            { id: "m1", name: "Microsoft Windows", detail: <>Der Hauptgrund für die Verwirrung! Windows rechnet intern absolut korrekt <Tip text="Auf dem Zweiersystem basierend (Faktor 1.024). So wie Computer tatsächlich rechnen.">binär</Tip> (/ 1024), schreibt aber aus alten Gewohnheiten fälschlicherweise 'GB' statt '<Tip text="Gibibyte — die korrekte binäre Einheit nach IEC-Norm. 1 GiB = 2³⁰ = 1.073.741.824 Byte.">GiB</Tip>' ins System.</> },
+            { id: "m2", name: "Arbeitsspeicher (RAM)", detail: "RAM-Chips sind physisch binär in einer Matrix aufgebaut. Ein 8 GB RAM-Riegel hat in Wirklichkeit immer exakt 8 GiB Speicherkapazität. Hier gewinnt die Hardware-Logik." },
+            { id: "m3", name: "Linux / Ubuntu", detail: "Das Betriebssystem der Experten. Linux rechnet binär, ist aber ehrlich: Es zeigt dir normgerecht an, ob du gerade GiB (binär) oder GB (dezimal) betrachtest." }
+          ]
+        }
+      };
+
+      const getFactor = (unit) => {
+        if (unit === 'MB') return 1e6 * 8;
+        if (unit === 'GB') return 1e9 * 8;
+        if (unit === 'TB') return 1e12 * 8;
+        if (unit === 'PB') return 1e15 * 8;
+        if (unit === 'MiB') return Math.pow(2, 20) * 8;
+        if (unit === 'GiB') return Math.pow(2, 30) * 8;
+        if (unit === 'TiB') return Math.pow(2, 40) * 8;
+        if (unit === 'PiB') return Math.pow(2, 50) * 8;
+        return 1;
+      };
+
+      const getSpeedFactor = (unit) => {
+        return unit === 'Mbit/s' ? 1e6 : 1e9;
+      };
+
+      // Berechnungs-Logik
+      let resultDisplay = "";
+      let ahaTitle = "";
+      let didacticHint = "";
+
+      if (calcMode === 'time') {
+        const speed = bandwidth * getSpeedFactor(bandwidthUnit);
+        const t = speed > 0 ? (dataAmount * getFactor(dataUnit)) / speed : 0;
+        const h = Math.floor(t / 3600);
+        const m = Math.floor((t % 3600) / 60);
+        const s = Math.floor(t % 60);
+        resultDisplay = `${h > 0 ? h + 'h ' : ''}${m > 0 || h > 0 ? m + 'm ' : ''}${s}s`;
+
+        ahaTitle = "Die klassische Bruch-Logik (Zeit)";
+        didacticHint = <>Stell dir vor, du hast einen riesigen Berg an Daten (Zähler oben). Je dicker das Rohr ist, durch das du ihn drückst (<Tip text="Die maximale Datenübertragungsrate einer Verbindung, z.B. 250 Mbit/s. Umgangssprachlich oft ‚Geschwindigkeit' genannt.">Bandbreite</Tip> unten), desto kleiner wird die benötigte Dauer (die Zeit)! Sie verhalten sich <Tip text="Wenn ein Wert steigt, sinkt der andere — und umgekehrt. Doppelte Bandbreite = halbe Zeit.">antiproportional</Tip>.</>;
+      }
+      else if (calcMode === 'speed') {
+        const tSec = targetMinutes * 60;
+        const reqSpeedBits = tSec > 0 ? (dataAmount * getFactor(dataUnit)) / tSec : 0;
+        resultDisplay = (reqSpeedBits / getSpeedFactor(bandwidthUnit)).toFixed(2);
+
+        ahaTitle = "Der Kreuztausch (Speed)";
+        didacticHint = "Wenn du eine feste Zeitvorgabe hast, tauschen Zeit und Bandbreite in der Mathematik einfach die Plätze. Der Daten-Berg bleibt oben. Wenig Zeit im Nenner? Dann wird das Ergebnis (die nötige Bandbreite) gigantisch!";
+      }
+      else if (calcMode === 'size') {
+        const tSec = targetMinutes * 60;
+        const totalBits = bandwidth * getSpeedFactor(bandwidthUnit) * tSec;
+        resultDisplay = (totalBits / getFactor(dataUnit)).toFixed(2);
+
+        ahaTitle = "Die Multiplikation (Menge)";
+        didacticHint = "Die Formel klappt auf! Wie viele Daten haben wir am Ende verschickt? Je schneller unsere Leitung ist (Speed) UND je länger wir sie laufen lassen (Zeit), desto gewaltiger wird der Datenberg. Deswegen: Malnehmen (×)!";
+      }
+
+      const HandDrawnBox = ({ children, className = "" }) => (
+        <div className={`border-[3px] border-black p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-[4px] ${className}`}>
+          {children}
+        </div>
+      );
+
+      const DrawingGrid = ({ type, diff = 0 }) => {
+        const blocks = 100;
+        const extra = type === 'bin' ? Math.ceil(diff) : 0;
+        return (
+          <div className="flex flex-col items-center">
+            <span className="text-xs font-black uppercase mb-3 tracking-widest text-center h-4">
+              {type === 'si' ? 'Dezimal (SI)' : 'Binär (Real)'}
+            </span>
+            <div className="grid grid-cols-10 gap-0.5 md:gap-1 p-2 border-2 border-black bg-white">
+              {[...Array(blocks)].map((_, i) => (
+                <div key={i} className={`w-3 h-3 md:w-4 md:h-4 border border-black ${type === 'si' ? 'bg-emerald-200' : 'bg-amber-200'}`}></div>
+              ))}
+              {[...Array(extra)].map((_, i) => (
+                <div key={i} className="w-3 h-3 md:w-4 md:h-4 bg-black border border-black animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+        );
+      };
+
+      // Formel-Variablen-Karte — nutzt layoutId für Cross-Parent-Animation
+      const FormulaCard = ({ id, symbol, label, icon, color, isTarget }) => (
+        <motion.div
+          layoutId={`formula-card-${id}`}
+          onClick={() => setCalcMode(id)}
+          transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1.5 }}
+          whileHover={{ scale: 1.08, cursor: 'pointer' }}
+          whileTap={{ scale: 0.95 }}
+          className={`
+            flex flex-col items-center justify-center border-[3px] md:border-4 border-black font-black text-center
+            px-3 py-2 md:px-5 md:py-3 min-w-[65px] md:min-w-[95px]
+            ${color}
+            ${isTarget
+              ? 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
+              : 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-95'}
+          `}
+        >
+          <div className="flex items-center gap-1 pointer-events-none">
+            {icon}
+          </div>
+          <span className="text-xl md:text-3xl font-black pointer-events-none mt-0.5 md:mt-1">{symbol}</span>
+          <span className="text-[8px] md:text-xs font-bold opacity-70 pointer-events-none mt-0.5 whitespace-nowrap">{label}</span>
+        </motion.div>
+      );
+
+      const { AnimatePresence } = window.Motion;
+
+      // Die Formel-Visualisierung — langsame, sichtbare Umstellungs-Animation
+      const FormulaDisplay = () => {
+        const cardData = {
+          size: { id: 'size', symbol: 'D', label: 'Datenmenge', icon: <HardDrive className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-blue-300' },
+          time: { id: 'time', symbol: 't', label: 'Zeit/Dauer', icon: <Clock className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-yellow-300' },
+          speed: { id: 'speed', symbol: 'v', label: 'Bandbreite', icon: <Wifi className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-emerald-300' },
+        };
+
+        // Bestimme die Formelstruktur
+        let target, numerator, denominator, factor1, factor2;
+        let isFraction = true;
+
+        if (calcMode === 'time') {
+          target = 'time'; numerator = 'size'; denominator = 'speed';
+        } else if (calcMode === 'speed') {
+          target = 'speed'; numerator = 'size'; denominator = 'time';
+        } else {
+          target = 'size'; factor1 = 'speed'; factor2 = 'time';
+          isFraction = false;
+        }
+
+        const slowSpring = { type: "spring", stiffness: 60, damping: 15, mass: 1.5 };
+
+        return (
+          <div className="flex items-center justify-center gap-3 md:gap-10 w-full py-4 md:py-6">
+            {/* Linke Seite: Gesuchte Variable */}
+            <div className="flex flex-col items-center gap-1">
+              <motion.span
+                key={`gesucht-${target}`}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.4 }}
+                className="text-[10px] md:text-xs font-black uppercase text-slate-400 mb-1"
+              >
+                Gesucht
+              </motion.span>
+              <FormulaCard {...cardData[target]} isTarget={true} />
+            </div>
+
+            {/* Gleichheitszeichen */}
+            <motion.span
+              layoutId="formula-equals"
+              transition={slowSpring}
+              className="font-black text-3xl md:text-6xl text-slate-800 select-none"
+            >
+              =
+            </motion.span>
+
+            {/* Rechte Seite: Bruch oder Multiplikation */}
+            <AnimatePresence mode="wait">
+              {isFraction ? (
+                <motion.div
+                  key="fraction-layout"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex flex-col items-center"
+                >
+                  {/* Zähler */}
+                  <FormulaCard {...cardData[numerator]} isTarget={false} />
+
+                  {/* Bruchstrich */}
+                  <motion.div
+                    layoutId="formula-operator-line"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    exit={{ scaleX: 0 }}
+                    transition={slowSpring}
+                    className="w-full h-[4px] md:h-[5px] bg-black my-2 rounded-full origin-center"
+                  />
+
+                  {/* Nenner */}
+                  <FormulaCard {...cardData[denominator]} isTarget={false} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="multiply-layout"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex items-center gap-3 md:gap-5"
+                >
+                  <FormulaCard {...cardData[factor1]} isTarget={false} />
+
+                  {/* Multiplikationszeichen */}
+                  <motion.span
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    exit={{ scale: 0, rotate: 180 }}
+                    transition={slowSpring}
+                    className="font-black text-2xl md:text-5xl text-slate-800 select-none"
+                  >
+                    ×
+                  </motion.span>
+
+                  <FormulaCard {...cardData[factor2]} isTarget={false} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      };
+
+      // Handler um den Slider beim Loslassen magnetisch einrasten zu lassen
+      const handleSliderRelease = () => {
+        setSliderValue(Math.round(sliderValue));
+      };
+
+      // Scroll-Spy: trackt die aktuell sichtbare Sektion
+      const [activeSection, setActiveSection] = useState('section-1');
+      const [showBackToTop, setShowBackToTop] = useState(false);
+
+      useEffect(() => {
+        const sections = document.querySelectorAll('[data-section]');
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                setActiveSection(entry.target.id);
+              }
+            });
+          },
+          { threshold: 0.3, rootMargin: '-80px 0px 0px 0px' }
+        );
+        sections.forEach((s) => observer.observe(s));
+
+        const handleScroll = () => setShowBackToTop(window.scrollY > 400);
+        window.addEventListener('scroll', handleScroll);
+
+        return () => {
+          sections.forEach((s) => observer.unobserve(s));
+          window.removeEventListener('scroll', handleScroll);
+        };
+      }, []);
+
+      const navItems = [
+        { id: 'section-1', label: 'Skalierung', icon: '📏' },
+        { id: 'section-2', label: 'Mensch vs. Maschine', icon: '⚡' },
+        { id: 'section-3', label: 'Mathe-Labor', icon: '🧪' },
+      ];
+
+      const scrollTo = (id) => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      };
+
+      return (
+        <div className="min-h-screen bg-[#faf9f6] text-black font-mono select-none">
+
+          {/* Sticky Navigation */}
+          <nav className="sticky top-0 z-50 bg-[#faf9f6]/90 backdrop-blur-sm border-b-[3px] border-black px-3 sm:px-4 md:px-8">
+            <div className="max-w-6xl mx-auto flex items-center justify-between h-12 md:h-14">
+              <span className="font-black text-xs sm:text-sm uppercase tracking-tight hidden sm:block bg-yellow-300 px-2 py-1 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rotate-[-1deg]">B&B</span>
+              <div className="flex gap-1 sm:gap-2">
+                {navItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollTo(item.id)}
+                    className={`
+                      text-[10px] sm:text-xs md:text-sm font-black uppercase px-2 sm:px-3 py-1.5 border-2 border-black transition-all
+                      ${activeSection === item.id
+                        ? 'bg-yellow-300 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -translate-y-[1px]'
+                        : 'bg-white hover:bg-yellow-100 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'}
+                    `}
+                  >
+                    <span className="hidden md:inline mr-1">{item.icon}</span> {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          <div className="p-3 sm:p-4 md:p-8 lg:p-12 overflow-x-hidden">
+            <div className="max-w-6xl mx-auto space-y-12 md:space-y-24">
+
+              <header className="space-y-6 pt-4">
+                <div className="inline-block border-[4px] border-black p-2 bg-yellow-300 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rotate-[-2deg]">
+                  <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter">Bit & Byte Wahnsinn</h1>
+                </div>
+                <p className="text-sm sm:text-lg md:text-2xl font-bold max-w-2xl leading-tight">
+                  Warum deine Festplatte schrumpft, Windows lügt und das Internet langsamer ist, als die Werbung behauptet.
+                </p>
+              </header>
+
+              {/* Section 1: Skala */}
+              <section id="section-1" data-section className="space-y-8 scroll-mt-16">
+                <div className="flex items-center gap-4">
+                  <MousePointer2 className="w-8 h-8 rotate-[20deg]" />
+                  <h2 className="text-2xl font-black uppercase">1. Das Skalierungs-Problem</h2>
+                </div>
+
+                <div className="bg-white p-4 md:p-6 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rotate-[0.5deg] relative max-w-4xl">
+                  <p className="text-base md:text-lg font-bold leading-relaxed">
+                    <strong className="text-red-600 text-xl">Ein Name, zwei Bedeutungen!</strong><br />
+                    Für Datenmengen existieren <strong>zwei verschiedene Einheitensysteme</strong>, die fast gleich heißen, aber <strong>nicht</strong> das Gleiche meinen:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="p-3 border-2 border-black bg-emerald-50">
+                      <span className="text-xs font-black uppercase text-emerald-700 block mb-1"><Tip text="Système International d'unités — das internationale Einheitensystem, das weltweit für Maßeinheiten verwendet wird (Meter, Kilogramm, Sekunde...).">SI</Tip> / <Tip text="Zahlensystem zur Basis 10, das im Alltag verwendet wird. Jede Stelle hat den zehnfachen Wert der vorherigen.">Dezimal</Tip> (Faktor 1.000)</span>
+                      <p className="text-sm font-bold">Kilo, Mega, Giga, Tera, Peta — basiert auf <strong><Tip text="Potenzen der Zahl 10: 10¹=10, 10²=100, 10³=1.000 usw. Die gewohnte Art zu zählen.">Zehnerpotenzen</Tip></strong> (10³, 10⁶, ...). Wird von Festplatten-Herstellern und im Alltag verwendet.</p>
+                    </div>
+                    <div className="p-3 border-2 border-black bg-amber-50">
+                      <span className="text-xs font-black uppercase text-amber-700 block mb-1"><Tip text="International Electrotechnical Commission — die Normungsorganisation, die 1998 die binären Präfixe (Kibi, Mebi, Gibi...) eingeführt hat, um die Verwirrung zu beenden.">IEC</Tip> / <Tip text="Zahlensystem zur Basis 2. Kennt nur die Ziffern 0 und 1. So ‚denken' Computer auf Hardware-Ebene.">Binär</Tip> (Faktor 1.024)</span>
+                      <p className="text-sm font-bold">Kibi, Mebi, Gibi, Tebi, Pebi — basiert auf <strong><Tip text="Potenzen der Zahl 2: 2¹=2, 2²=4, 2³=8, ... 2¹⁰=1.024. So ist Computer-Hardware physisch aufgebaut.">Zweierpotenzen</Tip></strong> (2¹⁰, 2²⁰, ...). So rechnen Computer und Betriebssysteme wirklich.</p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold mt-4 bg-yellow-200 px-3 py-2 inline-block border-2 border-black rotate-[-0.5deg]">
+                    👇 Bewege den Schieberegler und beobachte, wie sich die Abweichung mit jeder Stufe vergrößert!
+                  </p>
+                </div>
+
+                <HandDrawnBox className="space-y-10">
+                  <div className="relative pt-4 pb-4">
+                    <div className="relative w-[calc(100%-48px)] sm:w-[calc(100%-80px)] md:w-[calc(100%-128px)] mx-auto h-[240px] md:h-[240px] mb-6">
+                      {prefixes.map((p, i) => (
+                        <div
+                          key={i}
+                          onClick={() => setSliderValue(i)} // Macht die Labels klickbar!
+                          className={`absolute bottom-0 flex flex-col items-center transition-[opacity,transform] duration-200 w-16 sm:w-24 md:w-32 cursor-pointer will-change-[opacity,transform]
+                          ${prefixIndex === i ? 'scale-110 opacity-100 z-10' : 'opacity-30 hover:opacity-100'}
+                        `}
+                          style={{ left: `${(i / 4) * 100}%`, transform: `translateX(-50%)${prefixIndex === i ? ' scale(1.1)' : ''}` }}
+                        >
+                          <span className={`font-black uppercase text-[10px] sm:text-sm md:text-base mb-1 ${prefixIndex === i ? 'text-emerald-600' : 'text-slate-600'}`}>{p.siLabel}</span>
+                          <div className={`w-full p-1 sm:p-2 border-2 border-black rounded flex flex-col items-center justify-center min-h-[36px] sm:min-h-[50px] mb-4 ${prefixIndex === i ? 'bg-emerald-100 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>
+                            <div className="text-xs sm:text-sm md:text-base font-black">{p.siExp}</div>
+                            <div className={`text-[7px] sm:text-[9px] md:text-[10px] mt-0.5 sm:mt-1 font-bold tracking-tighter ${prefixIndex === i ? 'block' : 'hidden md:block'}`}>{p.siValStr}</div>
+                          </div>
+
+                          <span className={`font-black uppercase text-[10px] sm:text-sm md:text-base mb-1 ${prefixIndex === i ? 'text-amber-600' : 'text-slate-600'}`}>{p.binLabel}</span>
+                          <div className={`w-full p-1 sm:p-2 border-2 border-black rounded flex flex-col items-center justify-center min-h-[36px] sm:min-h-[50px] ${prefixIndex === i ? 'bg-amber-100 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>
+                            <div className="text-xs sm:text-sm md:text-base font-black">{p.binExp}</div>
+                            <div className={`text-[7px] sm:text-[9px] md:text-[10px] mt-0.5 sm:mt-1 font-bold tracking-tighter ${prefixIndex === i ? 'block' : 'hidden md:block'}`}>{p.binValStr}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Der Schieberegler */}
+                    <input
+                      type="range" min="0" max="4" step="1" value={sliderValue}
+                      onChange={(e) => setSliderValue(parseInt(e.target.value))}
+                      className="
+                      w-[calc(100%-48px)] sm:w-[calc(100%-80px)] md:w-[calc(100%-128px)] mx-auto block h-4 appearance-none bg-[#faf9f6] border-[3px] border-black outline-none relative z-20 cursor-pointer
+                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-10 [&::-webkit-slider-thumb]:h-10 
+                      [&::-webkit-slider-thumb]:bg-yellow-300 [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-black [&::-webkit-slider-thumb]:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]
+                      [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-10 [&::-moz-range-thumb]:h-10 
+                      [&::-moz-range-thumb]:bg-yellow-300 [&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:border-black [&::-moz-range-thumb]:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]
+                    "
+                    />
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-12 pt-8 border-t-[3px] border-black mt-4">
+                    <div className="space-y-4">
+                      <h3 className="font-black uppercase text-xl">Visueller Vergleich</h3>
+                      <p className="text-sm font-bold leading-relaxed">
+                        Die schwarze Fläche zeigt die "Extra-Daten", die beim {prefixes[prefixIndex].binLabel}byte dazukommen und das Raster nach unten sprengen.
+                      </p>
+                      <div className="p-4 bg-red-50 border-2 border-black rotate-[1deg] inline-block">
+                        <span className="font-black text-red-600">ABWEICHUNG: {prefixes[prefixIndex].diff}%</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-row gap-2 md:gap-4 items-start justify-center pt-2">
+                      <DrawingGrid type="si" />
+                      <div className="flex items-center justify-center pt-[50px] md:pt-[60px]">
+                        <ArrowRightLeft className="w-5 h-5 md:w-6 md:h-6 text-black" />
+                      </div>
+                      <DrawingGrid type="bin" diff={prefixes[prefixIndex].diff} />
+                    </div>
+                  </div>
+                </HandDrawnBox>
+              </section>
+
+              {/* Section 2: Mensch vs Maschine */}
+              <section id="section-2" data-section className="space-y-8 scroll-mt-16">
+                <div className="flex items-center gap-4">
+                  <ArrowRightLeft className="w-8 h-8" />
+                  <h2 className="text-2xl font-black uppercase">2. Mensch vs. Maschine</h2>
+                </div>
+
+                <div className="bg-white p-4 md:p-6 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -rotate-1 relative z-10 max-w-4xl">
+                  <p className="text-base md:text-lg font-bold leading-relaxed">
+                    <strong className="text-blue-600 text-xl">Es ist kein Fehler! Beides existiert friedlich nebeneinander.</strong><br />
+                    Der Mensch braucht runde 1000er-Zahlen für den Alltag (<Tip text="Système International d'unités — das internationale Einheitensystem.">SI</Tip>-Norm). Der Computer braucht <Tip text="Potenzen der Zahl 2: 2, 4, 8, 16, 32, 64, ..., 1024. So ist Hardware physisch aufgebaut.">2er-Potenzen</Tip> für seine Schaltkreise. Das Chaos entsteht nur, weil <Tip text="Die Software, die den Computer steuert (z.B. Windows, macOS, Linux). Vermittelt zwischen Hardware und Anwendungen.">Betriebssysteme</Tip> die Namen vertauschen. <br /><br />
+                    <span className="bg-yellow-200 px-2 py-1 inline-block border-2 border-black rotate-1">👉 Klicke auf die Tags unten, um zu sehen, wer was nutzt und <strong>warum!</strong></span>
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8 pt-4">
+                  <div className="p-6 md:p-8 border-[3px] border-black bg-[#e2f3f5] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[4px] flex flex-col">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="p-2 border-2 border-black bg-white">{worldData.human.icon}</div>
+                      <div>
+                        <h4 className="font-black uppercase text-xl">{worldData.human.title}</h4>
+                        <p className="text-sm font-bold text-emerald-800">{worldData.human.subtitle}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold leading-relaxed mb-6 flex-grow">{worldData.human.text}</p>
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        {worldData.human.users.map(u => (
+                          <button
+                            key={u.id} onClick={() => setActiveTag(activeTag === u.id ? null : u.id)}
+                            className={`text-xs md:text-sm border-2 border-black px-3 py-1 font-black transition-all ${activeTag === u.id ? 'bg-yellow-300 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] translate-y-[1px]' : 'bg-white hover:bg-emerald-100 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-[1px]'}`}
+                          >#{u.name}</button>
+                        ))}
+                      </div>
+                      {worldData.human.users.map(u => (
+                        activeTag === u.id && (
+                          <div key={`info-${u.id}`} className="mt-4 p-4 bg-white border-2 border-dashed border-black rotate-[1deg] animate-in fade-in slide-in-from-top-2">
+                            <span className="text-xs font-black uppercase text-emerald-600 block mb-1">Aha!</span>
+                            <p className="text-sm font-bold">{u.detail}</p>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-6 md:p-8 border-[3px] border-black bg-[#fff1e6] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[4px] flex flex-col">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="p-2 border-2 border-black bg-white">{worldData.machine.icon}</div>
+                      <div>
+                        <h4 className="font-black uppercase text-xl">{worldData.machine.title}</h4>
+                        <p className="text-sm font-bold text-blue-800">{worldData.machine.subtitle}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold leading-relaxed mb-6 flex-grow">{worldData.machine.text}</p>
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        {worldData.machine.users.map(u => (
+                          <button
+                            key={u.id} onClick={() => setActiveTag(activeTag === u.id ? null : u.id)}
+                            className={`text-xs md:text-sm border-2 border-black px-3 py-1 font-black transition-all ${activeTag === u.id ? 'bg-yellow-300 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] translate-y-[1px]' : 'bg-white hover:bg-amber-100 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-[1px]'}`}
+                          >#{u.name}</button>
+                        ))}
+                      </div>
+                      {worldData.machine.users.map(u => (
+                        activeTag === u.id && (
+                          <div key={`info-${u.id}`} className="mt-4 p-4 bg-white border-2 border-dashed border-black rotate-[-1deg] animate-in fade-in slide-in-from-top-2">
+                            <span className="text-xs font-black uppercase text-blue-600 block mb-1">Aha!</span>
+                            <p className="text-sm font-bold">{u.detail}</p>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Section 3: Das Formel-Labor */}
+              <section id="section-3" data-section className="space-y-8 pb-20 scroll-mt-16">
+                <div className="flex items-center gap-4">
+                  <Calculator className="w-8 h-8" />
+                  <h2 className="text-2xl font-black uppercase">3. Das Mathe-Labor: Formeln begreifen</h2>
+                </div>
+
+                <HandDrawnBox className="bg-[#f0f0f0] p-0 overflow-hidden">
+
+                  {/* Formel-Sandbox — feste Höhe, damit sie beim Umstellen nicht springt */}
+                  <div className="relative w-full h-[300px] md:h-[340px] bg-[#faf9f6] border-b-4 border-black overflow-hidden bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:20px_20px] flex flex-col items-center justify-center px-2 sm:px-4">
+                    <div className="bg-yellow-100 border-2 border-black px-2 sm:px-4 py-1 sm:py-2 font-black text-[10px] sm:text-xs md:text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rotate-1 text-center whitespace-nowrap mb-2">
+                      👉 Klicke auf eine Variable, um die Formel nach ihr umzustellen!
+                    </div>
+
+                    <FormulaDisplay />
+                  </div>
+
+                  {/* Aha Erlebnis */}
+                  <div className="w-full px-6 py-4 bg-slate-900 text-white border-b-4 border-black relative min-h-[80px] flex items-center justify-center transition-colors">
+                    <div className="absolute -top-5 md:-top-6 left-4 bg-yellow-400 p-2 md:p-3 rounded-full border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-10 rotate-12">
+                      <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-black" />
+                    </div>
+                    <div className="w-full pl-12 md:pl-16">
+                      <p className="text-xs md:text-sm font-bold leading-relaxed">
+                        <strong className="text-yellow-400 uppercase mr-2">{ahaTitle}:</strong> {didacticHint}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Inputs & Outputs */}
+                  <div className="grid md:grid-cols-2 gap-8 md:gap-12 p-6 md:p-10 bg-white">
+                    <div className="space-y-6">
+                      <h4 className="font-black uppercase text-lg md:text-xl mb-4 underline decoration-4 underline-offset-4">Gegeben (Bekannt):</h4>
+
+                      {calcMode !== 'size' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-left-4">
+                          <label className="text-xs font-black uppercase text-blue-800">Die Datenmenge</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number" value={dataAmount} onChange={e => setDataAmount(Number(e.target.value))}
+                              className="w-full border-4 border-black p-3 font-black text-xl focus:bg-blue-50 focus:outline-none"
+                            />
+                            <select
+                              value={dataUnit} onChange={e => setDataUnit(e.target.value)}
+                              className="border-4 border-black p-3 font-black bg-white cursor-pointer"
+                            >
+                              <optgroup label="Binär (IEC - Real)"><option value="MiB">MiB</option><option value="GiB">GiB</option><option value="TiB">TiB</option></optgroup>
+                              <optgroup label="Dezimal (SI - Marketing)"><option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option></optgroup>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {calcMode !== 'time' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-left-4">
+                          <label className="text-xs font-black uppercase text-yellow-800">Gewünschte Dauer</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number" value={targetMinutes} onChange={e => setTargetMinutes(Number(e.target.value))}
+                              className="w-full border-4 border-black p-3 font-black text-xl bg-white focus:bg-yellow-50 focus:outline-none"
+                            />
+                            <div className="border-4 border-black p-3 font-black bg-white flex items-center">Min.</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {calcMode !== 'speed' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-left-4">
+                          <label className="text-xs font-black uppercase text-emerald-800">Die Bandbreite</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number" value={bandwidth} onChange={e => setBandwidth(Number(e.target.value))}
+                              className="w-full border-4 border-black p-3 font-black text-xl focus:bg-emerald-50 focus:outline-none"
+                            />
+                            <select
+                              value={bandwidthUnit} onChange={e => setBandwidthUnit(e.target.value)}
+                              className="border-4 border-black p-3 font-black bg-white cursor-pointer"
+                            >
+                              <option value="Mbit/s">Mbit/s</option>
+                              <option value="Gbit/s">Gbit/s</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-6">
+                      <h4 className="font-black uppercase text-lg md:text-xl mb-4 underline decoration-4 underline-offset-4">Gesucht (Ergebnis):</h4>
+                      <div className={`
+                        border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] -rotate-1 flex flex-col items-center justify-center min-h-[160px] transition-colors duration-500
+                        ${calcMode === 'time' ? 'bg-yellow-300' : calcMode === 'speed' ? 'bg-emerald-300' : 'bg-blue-300'}
+                      `}>
+                        <span className="text-xs font-black uppercase text-black/60 mb-2">Errechneter Wert</span>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
+                          <div className="text-4xl md:text-5xl font-black text-black break-all">{resultDisplay}</div>
+
+                          {calcMode === 'size' && (
+                            <select value={dataUnit} onChange={e => setDataUnit(e.target.value)} className="border-4 border-black p-2 font-black bg-white text-lg cursor-pointer">
+                              <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option><option value="MiB">MiB</option><option value="GiB">GiB</option><option value="TiB">TiB</option>
+                            </select>
+                          )}
+                          {calcMode === 'speed' && (
+                            <select value={bandwidthUnit} onChange={e => setBandwidthUnit(e.target.value)} className="border-4 border-black p-2 font-black bg-white text-lg cursor-pointer">
+                              <option value="Mbit/s">Mbit/s</option><option value="Gbit/s">Gbit/s</option>
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </HandDrawnBox>
+              </section>
+            </div>
+
+            {/* Footer */}
+            <footer className="mt-16 md:mt-24 border-t-[3px] border-black py-8 px-4">
+              <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-yellow-300 px-3 py-1 border-[3px] border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rotate-[-2deg]">
+                    <span className="font-black text-sm uppercase">Bit & Byte Wahnsinn</span>
+                  </div>
+                </div>
+                <p className="text-xs md:text-sm font-bold text-slate-500 text-center">
+                  Interaktiver Explainer für Datenübertragung & Präfixe — Unterrichtsmaterial ITS
+                </p>
+              </div>
+            </footer>
+          </div>
+
+          {/* Back-to-Top Button */}
+          <motion.button
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: showBackToTop ? 1 : 0, scale: showBackToTop ? 1 : 0 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-6 right-6 z-50 w-12 h-12 bg-yellow-300 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] font-black text-xl flex items-center justify-center hover:bg-yellow-400 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] transition-all"
+            aria-label="Zurück nach oben"
+          >
+            ↑
+          </motion.button>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+
+</html>
