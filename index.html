@@ -148,6 +148,7 @@
       const [bandwidth, setBandwidth] = useState(250);
       const [bandwidthUnit, setBandwidthUnit] = useState('Mbit/s');
       const [targetMinutes, setTargetMinutes] = useState(60);
+      const [showChainModal, setShowChainModal] = useState(false);
 
       const prefixes = [
         { siLabel: 'Kilo', binLabel: 'Kibi', siName: 'KB', binName: 'KiB', siExp: '10³', binExp: '2¹⁰', siValStr: "1.000", binValStr: "1.024", diff: 2.4 },
@@ -573,48 +574,76 @@
                   </p>
                 </div>
 
-                <HandDrawnBox className="space-y-10">
-                  <div className="relative pt-4 pb-4">
-                    <div className="relative w-[calc(100%-48px)] sm:w-[calc(100%-80px)] md:w-[calc(100%-128px)] mx-auto h-[240px] md:h-[240px] mb-6">
-                      {prefixes.map((p, i) => (
-                        <div
+                <HandDrawnBox className="space-y-8">
+
+                  {/* Integrierte Stufen-Karten: SI oben (grün), IEC unten (amber) */}
+                  <div className="flex items-start gap-2 md:gap-3">
+                    {prefixes.map((p, i) => {
+                      const isActive = prefixIndex === i;
+                      return (
+                        <button
                           key={i}
-                          onClick={() => setSliderValue(i)} // Macht die Labels klickbar!
-                          className={`absolute bottom-0 flex flex-col items-center transition-[opacity,transform] duration-200 w-16 sm:w-24 md:w-32 cursor-pointer will-change-[opacity,transform]
-                          ${prefixIndex === i ? 'scale-110 opacity-100 z-10' : 'opacity-30 hover:opacity-100'}
-                        `}
-                          style={{ left: `${(i / 4) * 100}%`, transform: `translateX(-50%)${prefixIndex === i ? ' scale(1.1)' : ''}` }}
+                          onClick={() => setSliderValue(i)}
+                          className={`flex-1 flex flex-col border-[3px] border-black rounded overflow-hidden transition-all duration-200 ${
+                            isActive
+                              ? 'shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] scale-[1.03] z-10'
+                              : 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:scale-[1.01]'
+                          }`}
                         >
-                          <span className={`font-black uppercase text-[10px] sm:text-sm md:text-base mb-1 ${prefixIndex === i ? 'text-emerald-600' : 'text-slate-600'}`}>{p.siLabel}</span>
-                          <div className={`w-full p-1 sm:p-2 border-2 border-black rounded flex flex-col items-center justify-center min-h-[36px] sm:min-h-[50px] mb-4 ${prefixIndex === i ? 'bg-emerald-100 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>
-                            <div className="text-xs sm:text-sm md:text-base font-black">{p.siExp}</div>
-                            <div className={`text-[7px] sm:text-[9px] md:text-[10px] mt-0.5 sm:mt-1 font-bold tracking-tighter ${prefixIndex === i ? 'block' : 'hidden md:block'}`}>{p.siValStr}</div>
+                          {/* SI / Dezimal Hälfte */}
+                          <div className={`px-1 sm:px-2 md:px-3 py-1.5 sm:py-2 md:py-3 transition-colors duration-200 ${
+                            isActive ? 'bg-emerald-200' : 'bg-emerald-50 hover:bg-emerald-100'
+                          }`}>
+                            <div className={`text-xs sm:text-sm md:text-lg font-black ${isActive ? 'text-emerald-900' : 'text-emerald-700'}`}>{p.siName}</div>
+                            <div className={`text-[7px] sm:text-[9px] md:text-xs font-bold ${isActive ? 'text-emerald-700' : 'text-emerald-500'}`}>{p.siLabel}</div>
+                            {isActive && (
+                              <div className="mt-1 md:mt-2 space-y-0.5">
+                                <div className="text-[10px] sm:text-xs md:text-sm font-black text-emerald-800 bg-emerald-100 inline-block px-1 rounded border border-emerald-300">{p.siExp}</div>
+                                <div className="text-[7px] sm:text-[8px] md:text-[10px] font-bold text-emerald-600 leading-tight">{p.siValStr} Byte</div>
+                              </div>
+                            )}
                           </div>
 
-                          <span className={`font-black uppercase text-[10px] sm:text-sm md:text-base mb-1 ${prefixIndex === i ? 'text-amber-600' : 'text-slate-600'}`}>{p.binLabel}</span>
-                          <div className={`w-full p-1 sm:p-2 border-2 border-black rounded flex flex-col items-center justify-center min-h-[36px] sm:min-h-[50px] ${prefixIndex === i ? 'bg-amber-100 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>
-                            <div className="text-xs sm:text-sm md:text-base font-black">{p.binExp}</div>
-                            <div className={`text-[7px] sm:text-[9px] md:text-[10px] mt-0.5 sm:mt-1 font-bold tracking-tighter ${prefixIndex === i ? 'block' : 'hidden md:block'}`}>{p.binValStr}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                          {/* Trennlinie + Delta */}
+                          {isActive && (
+                            <div className="bg-red-100 border-y-2 border-black px-1 py-0.5 md:py-1 flex items-center justify-center">
+                              <span className="text-[8px] sm:text-[10px] md:text-xs font-black text-red-600">Δ {p.diff}%</span>
+                            </div>
+                          )}
+                          {!isActive && (
+                            <div className="h-[2px] bg-black"></div>
+                          )}
 
-                    {/* Der Schieberegler */}
-                    <input
-                      type="range" min="0" max="4" step="1" value={sliderValue}
-                      onChange={(e) => setSliderValue(parseInt(e.target.value))}
-                      className="
-                      w-[calc(100%-48px)] sm:w-[calc(100%-80px)] md:w-[calc(100%-128px)] mx-auto block h-4 appearance-none bg-[#faf9f6] border-[3px] border-black outline-none relative z-20 cursor-pointer
-                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-10 [&::-webkit-slider-thumb]:h-10 
-                      [&::-webkit-slider-thumb]:bg-yellow-300 [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-black [&::-webkit-slider-thumb]:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]
-                      [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-10 [&::-moz-range-thumb]:h-10 
-                      [&::-moz-range-thumb]:bg-yellow-300 [&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:border-black [&::-moz-range-thumb]:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]
-                    "
-                    />
+                          {/* IEC / Binär Hälfte */}
+                          <div className={`px-1 sm:px-2 md:px-3 py-1.5 sm:py-2 md:py-3 transition-colors duration-200 ${
+                            isActive ? 'bg-amber-200' : 'bg-amber-50 hover:bg-amber-100'
+                          }`}>
+                            <div className={`text-xs sm:text-sm md:text-lg font-black ${isActive ? 'text-amber-900' : 'text-amber-700'}`}>{p.binName}</div>
+                            <div className={`text-[7px] sm:text-[9px] md:text-xs font-bold ${isActive ? 'text-amber-700' : 'text-amber-500'}`}>{p.binLabel}</div>
+                            {isActive && (
+                              <div className="mt-1 md:mt-2 space-y-0.5">
+                                <div className="text-[10px] sm:text-xs md:text-sm font-black text-amber-800 bg-amber-100 inline-block px-1 rounded border border-amber-300">{p.binExp}</div>
+                                <div className="text-[7px] sm:text-[8px] md:text-[10px] font-bold text-amber-600 leading-tight">{p.binValStr} Byte</div>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-12 pt-8 border-t-[3px] border-black mt-4">
+                  {/* Button für Umrechnungshilfe-Modal */}
+                  <button
+                    onClick={() => setShowChainModal(true)}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-3 md:py-4 border-[3px] border-black bg-slate-900 text-white font-black text-sm md:text-base uppercase tracking-wide shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-slate-800 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all"
+                  >
+                    <span className="text-lg">🔗</span>
+                    Umrechnungshilfe anzeigen
+                    <span className="text-xs font-bold opacity-60 normal-case">(Byte ↔ KiB ↔ MiB ... / kB ↔ MB ...)</span>
+                  </button>
+
+                  {/* Visueller Vergleich */}
+                  <div className="grid md:grid-cols-2 gap-8 md:gap-12 pt-6 border-t-[3px] border-black">
                     <div className="space-y-4">
                       <h3 className="font-black uppercase text-xl">Visueller Vergleich</h3>
                       <p className="text-sm font-bold leading-relaxed">
@@ -863,6 +892,105 @@
               </div>
             </footer>
           </div>
+
+          {/* ===== UMRECHNUNGSHILFE MODAL ===== */}
+          {showChainModal && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8"
+              onClick={() => setShowChainModal(false)}
+            >
+              {/* Backdrop */}
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+
+              {/* Modal */}
+              <div
+                className="relative bg-[#faf9f6] border-[4px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="sticky top-0 bg-yellow-300 border-b-[4px] border-black px-4 md:px-6 py-3 md:py-4 flex items-center justify-between z-10">
+                  <h3 className="font-black text-base md:text-xl uppercase tracking-tight">🔗 Umrechnungshilfe</h3>
+                  <button
+                    onClick={() => setShowChainModal(false)}
+                    className="w-10 h-10 bg-white border-[3px] border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-black text-xl flex items-center justify-center hover:bg-red-100 active:shadow-none active:translate-x-[3px] active:translate-y-[3px] transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 md:p-8 space-y-6">
+
+                  {/* Binäre Kette */}
+                  <div className="p-4 md:p-6 border-[3px] border-black bg-amber-50 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <span className="text-xs font-black uppercase tracking-widest text-amber-800 bg-amber-200 px-2 py-1 border-2 border-black inline-block mb-5">IEC / Binär — Faktor 1.024</span>
+                    <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4 flex-wrap">
+                      {['Byte', 'KiB', 'MiB', 'GiB', 'TiB'].map((unit, i) => (
+                        <React.Fragment key={unit}>
+                          {i > 0 && (
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] sm:text-xs md:text-sm font-black text-amber-700">÷ 2¹⁰</span>
+                              <svg className="w-10 h-5 sm:w-14 sm:h-6 md:w-16 md:h-7 text-amber-500" viewBox="0 0 64 28" fill="none">
+                                <path d="M4 14 C20 2, 44 2, 60 14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+                                <polygon points="57,9 62,14 55,16" fill="currentColor"/>
+                              </svg>
+                              <svg className="w-10 h-5 sm:w-14 sm:h-6 md:w-16 md:h-7 text-amber-500" viewBox="0 0 64 28" fill="none">
+                                <path d="M60 14 C44 26, 20 26, 4 14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+                                <polygon points="7,19 2,14 9,12" fill="currentColor"/>
+                              </svg>
+                              <span className="text-[10px] sm:text-xs md:text-sm font-black text-amber-700">× 2¹⁰</span>
+                            </div>
+                          )}
+                          <div className={`flex flex-col items-center justify-center px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-[3px] border-black min-w-[48px] sm:min-w-[64px] md:min-w-[80px] ${
+                            i === 0 ? 'bg-slate-100' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                          }`}>
+                            <span className="text-sm sm:text-base md:text-xl font-black">{unit}</span>
+                            {i === 0 && <span className="text-[8px] sm:text-[10px] font-bold text-slate-500">8 Bit</span>}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dezimale Kette */}
+                  <div className="p-4 md:p-6 border-[3px] border-black bg-emerald-50 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <span className="text-xs font-black uppercase tracking-widest text-emerald-800 bg-emerald-200 px-2 py-1 border-2 border-black inline-block mb-5">SI / Dezimal — Faktor 1.000</span>
+                    <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4 flex-wrap">
+                      {['Byte', 'kB', 'MB', 'GB', 'TB'].map((unit, i) => (
+                        <React.Fragment key={unit}>
+                          {i > 0 && (
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] sm:text-xs md:text-sm font-black text-emerald-700">÷ 10³</span>
+                              <svg className="w-10 h-5 sm:w-14 sm:h-6 md:w-16 md:h-7 text-emerald-500" viewBox="0 0 64 28" fill="none">
+                                <path d="M4 14 C20 2, 44 2, 60 14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+                                <polygon points="57,9 62,14 55,16" fill="currentColor"/>
+                              </svg>
+                              <svg className="w-10 h-5 sm:w-14 sm:h-6 md:w-16 md:h-7 text-emerald-500" viewBox="0 0 64 28" fill="none">
+                                <path d="M60 14 C44 26, 20 26, 4 14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+                                <polygon points="7,19 2,14 9,12" fill="currentColor"/>
+                              </svg>
+                              <span className="text-[10px] sm:text-xs md:text-sm font-black text-emerald-700">× 10³</span>
+                            </div>
+                          )}
+                          <div className={`flex flex-col items-center justify-center px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-[3px] border-black min-w-[48px] sm:min-w-[64px] md:min-w-[80px] ${
+                            i === 0 ? 'bg-slate-100' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                          }`}>
+                            <span className="text-sm sm:text-base md:text-xl font-black">{unit}</span>
+                            {i === 0 && <span className="text-[8px] sm:text-[10px] font-bold text-slate-500">8 Bit</span>}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Hinweis */}
+                  <div className="p-3 bg-yellow-100 border-2 border-black text-sm font-bold text-center">
+                    Nach <strong>rechts</strong> → teilen (÷) · Nach <strong>links</strong> ← multiplizieren (×)
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Back-to-Top Button */}
           <motion.button
