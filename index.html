@@ -140,7 +140,7 @@
       const prefixIndex = Math.round(sliderValue);
 
       const [worldView, setWorldView] = useState('human');
-      const [activeTag, setActiveTag] = useState(null);
+      const [activeTag, setActiveTag] = useState('m1'); // m1 (Windows) by default to expose crucial info
 
       const [calcMode, setCalcMode] = useState('time');
       const [dataAmount, setDataAmount] = useState(150);
@@ -183,10 +183,12 @@
       };
 
       const getFactor = (unit) => {
+        if (unit === 'KB') return 1e3 * 8;
         if (unit === 'MB') return 1e6 * 8;
         if (unit === 'GB') return 1e9 * 8;
         if (unit === 'TB') return 1e12 * 8;
         if (unit === 'PB') return 1e15 * 8;
+        if (unit === 'KiB') return Math.pow(2, 10) * 8;
         if (unit === 'MiB') return Math.pow(2, 20) * 8;
         if (unit === 'GiB') return Math.pow(2, 30) * 8;
         if (unit === 'TiB') return Math.pow(2, 40) * 8;
@@ -195,17 +197,47 @@
       };
 
       const getSpeedFactor = (unit) => {
-        return unit === 'Mbit/s' ? 1e6 : 1e9;
+        if (unit === 'Kbit/s') return 1e3;
+        if (unit === 'Mbit/s') return 1e6;
+        return 1e9; // Gbit/s
+      };
+
+      // Lesbare Darstellung des Präfix-Faktors für die Rechenschritte
+      const getUnitExpr = (unit) => {
+        const map = {
+          'KB':  { base: '10³',  label: '1.000', byteVal: 1e3 },
+          'MB':  { base: '10⁶',  label: '1.000.000', byteVal: 1e6 },
+          'GB':  { base: '10⁹',  label: '1.000.000.000', byteVal: 1e9 },
+          'TB':  { base: '10¹²', label: '1.000.000.000.000', byteVal: 1e12 },
+          'PB':  { base: '10¹⁵', label: '1.000.000.000.000.000', byteVal: 1e15 },
+          'KiB': { base: '2¹⁰', label: '1.024', byteVal: Math.pow(2, 10) },
+          'MiB': { base: '2²⁰', label: '1.048.576', byteVal: Math.pow(2, 20) },
+          'GiB': { base: '2³⁰', label: '1.073.741.824', byteVal: Math.pow(2, 30) },
+          'TiB': { base: '2⁴⁰', label: '1.099.511.627.776', byteVal: Math.pow(2, 40) },
+          'PiB': { base: '2⁵⁰', label: '1.125.899.906.842.624', byteVal: Math.pow(2, 50) },
+        };
+        return map[unit] || { base: '?', label: '?', byteVal: 1 };
+      };
+
+      const getSpeedExpr = (unit) => {
+        if (unit === 'Kbit/s') return { base: '10³', label: '1.000' };
+        if (unit === 'Mbit/s') return { base: '10⁶', label: '1.000.000' };
+        return { base: '10⁹', label: '1.000.000.000' };
       };
 
       // Berechnungs-Logik
       let resultDisplay = "";
       let ahaTitle = "";
       let didacticHint = "";
+      let calculationSteps = [];
 
       if (calcMode === 'time') {
         const speed = bandwidth * getSpeedFactor(bandwidthUnit);
-        const t = speed > 0 ? (dataAmount * getFactor(dataUnit)) / speed : 0;
+        const dataBits = dataAmount * getFactor(dataUnit);
+        const ue = getUnitExpr(dataUnit);
+        const dataBytes = dataAmount * ue.byteVal;
+        const se = getSpeedExpr(bandwidthUnit);
+        const t = speed > 0 ? dataBits / speed : 0;
         const h = Math.floor(t / 3600);
         const m = Math.floor((t % 3600) / 60);
         const s = Math.floor(t % 60);
@@ -213,22 +245,67 @@
 
         ahaTitle = "Die klassische Bruch-Logik (Zeit)";
         didacticHint = <>Stell dir vor, du hast einen riesigen Berg an Daten (Zähler oben). Je dicker das Rohr ist, durch das du ihn drückst (<Tip text="Die maximale Datenübertragungsrate einer Verbindung, z.B. 250 Mbit/s. Umgangssprachlich oft ‚Geschwindigkeit' genannt.">Bandbreite</Tip> unten), desto kleiner wird die benötigte Dauer (die Zeit)! Sie verhalten sich <Tip text="Wenn ein Wert steigt, sinkt der andere — und umgekehrt. Doppelte Bandbreite = halbe Zeit.">antiproportional</Tip>.</>;
+
+        calculationSteps = [
+          `Schritt 1: Datenmenge in Byte umrechnen`,
+          `-> ${dataAmount} ${dataUnit} = ${dataAmount} × ${ue.base} = ${dataBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Byte`,
+          `Schritt 2: Byte in Bit umrechnen (× 8)`,
+          `-> ${dataBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} × 8 = ${dataBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit`,
+          `Schritt 3: Bandbreite in Bit/s umrechnen`,
+          `-> ${bandwidth} ${bandwidthUnit} = ${bandwidth} × ${se.base} = ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s`,
+          `Schritt 4: Dauer = Datenmenge / Bandbreite`,
+          `-> ${dataBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit / ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s = ${t.toFixed(2)} Sekunden`
+        ];
       }
       else if (calcMode === 'speed') {
         const tSec = targetMinutes * 60;
-        const reqSpeedBits = tSec > 0 ? (dataAmount * getFactor(dataUnit)) / tSec : 0;
+        const dataBits = dataAmount * getFactor(dataUnit);
+        const ue = getUnitExpr(dataUnit);
+        const dataBytes = dataAmount * ue.byteVal;
+        const reqSpeedBits = tSec > 0 ? dataBits / tSec : 0;
+        const se = getSpeedExpr(bandwidthUnit);
         resultDisplay = (reqSpeedBits / getSpeedFactor(bandwidthUnit)).toFixed(2);
 
         ahaTitle = "Der Kreuztausch (Speed)";
         didacticHint = "Wenn du eine feste Zeitvorgabe hast, tauschen Zeit und Bandbreite in der Mathematik einfach die Plätze. Der Daten-Berg bleibt oben. Wenig Zeit im Nenner? Dann wird das Ergebnis (die nötige Bandbreite) gigantisch!";
+
+        calculationSteps = [
+          `Schritt 1: Datenmenge in Byte umrechnen`,
+          `-> ${dataAmount} ${dataUnit} = ${dataAmount} × ${ue.base} = ${dataBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Byte`,
+          `Schritt 2: Byte in Bit umrechnen (× 8)`,
+          `-> ${dataBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} × 8 = ${dataBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit`,
+          `Schritt 3: Zeitvorgabe in Sekunden`,
+          `-> ${targetMinutes} Min. × 60 = ${tSec} s`,
+          `Schritt 4: Bandbreite = Datenmenge / Zeit`,
+          `-> ${dataBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit / ${tSec} s = ${reqSpeedBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s`,
+          `Schritt 5: Umrechnung in ${bandwidthUnit}`,
+          `-> ${reqSpeedBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} / ${se.base} = ${resultDisplay} ${bandwidthUnit}`
+        ];
       }
       else if (calcMode === 'size') {
         const tSec = targetMinutes * 60;
-        const totalBits = bandwidth * getSpeedFactor(bandwidthUnit) * tSec;
+        const speed = bandwidth * getSpeedFactor(bandwidthUnit);
+        const totalBits = speed * tSec;
+        const se = getSpeedExpr(bandwidthUnit);
+        const ue = getUnitExpr(dataUnit);
+        const totalBytes = totalBits / 8;
         resultDisplay = (totalBits / getFactor(dataUnit)).toFixed(2);
 
         ahaTitle = "Die Multiplikation (Menge)";
         didacticHint = "Die Formel klappt auf! Wie viele Daten haben wir am Ende verschickt? Je schneller unsere Leitung ist (Speed) UND je länger wir sie laufen lassen (Zeit), desto gewaltiger wird der Datenberg. Deswegen: Malnehmen (×)!";
+
+        calculationSteps = [
+          `Schritt 1: Bandbreite in Bit/s umrechnen`,
+          `-> ${bandwidth} ${bandwidthUnit} = ${bandwidth} × ${se.base} = ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s`,
+          `Schritt 2: Zeitvorgabe in Sekunden`,
+          `-> ${targetMinutes} Min. × 60 = ${tSec} s`,
+          `Schritt 3: Gesamtmenge = Bandbreite × Zeit`,
+          `-> ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} × ${tSec} = ${totalBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit`,
+          `Schritt 4: Bit in Byte umrechnen (/ 8)`,
+          `-> ${totalBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} / 8 = ${totalBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Byte`,
+          `Schritt 5: Byte in ${dataUnit} umrechnen (/ ${ue.base})`,
+          `-> ${totalBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} / ${ue.label} = ${resultDisplay} ${dataUnit}`
+        ];
       }
 
       const HandDrawnBox = ({ children, className = "" }) => (
@@ -634,8 +711,18 @@
                 </div>
               </section>
 
+              {/* Bridge Text für didaktischen Übergang */}
+              <div className="bg-yellow-100 p-4 sm:p-6 border-[3px] border-black rotate-1 my-12 max-w-4xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] mx-auto relative z-20">
+                <div className="absolute -top-4 -left-4 bg-red-600 text-white font-black text-xs px-2 py-1 rotate-[-5deg] border-2 border-black">WICHTIG!</div>
+                <h3 className="font-black text-lg sm:text-xl mb-3 flex items-center gap-2 uppercase"><ArrowRightLeft className="w-6 h-6" /> Achte auf den Bruch: Byte vs. Bit!</h3>
+                <p className="font-bold text-sm sm:text-base leading-relaxed">
+                  Beim Thema <strong>Festplatten & Dateien</strong> sprechen wir immer "byte-weise" (<Tip text="Oft in großen Präfixen wie MB, GB oder GiB. 1 Byte = 8 Bit.">Bytes (B)</Tip>).
+                  Wenn wir aber Daten in <strong>Netzwerke</strong> (<Tip text="Zum Beispiel dein Internetanschluss oder WLAN.">Bandbreite</Tip>) einspeisen, geschieht dies "bit-weise", gemessen in <strong>Bit pro Sekunde (bit/s)</strong>.<br />
+                </p>
+              </div>
+
               {/* Section 3: Das Formel-Labor */}
-              <section id="section-3" data-section className="space-y-8 pb-20 scroll-mt-16">
+              <section id="section-3" data-section className="space-y-8 pb-20 scroll-mt-24">
                 <div className="flex items-center gap-4">
                   <Calculator className="w-8 h-8" />
                   <h2 className="text-2xl font-black uppercase">3. Das Mathe-Labor: Formeln begreifen</h2>
@@ -681,8 +768,8 @@
                               value={dataUnit} onChange={e => setDataUnit(e.target.value)}
                               className="border-4 border-black p-3 font-black bg-white cursor-pointer"
                             >
-                              <optgroup label="Binär (IEC - Real)"><option value="MiB">MiB</option><option value="GiB">GiB</option><option value="TiB">TiB</option></optgroup>
-                              <optgroup label="Dezimal (SI - Marketing)"><option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option></optgroup>
+                              <optgroup label="Binär (IEC)"><option value="KiB">KiB</option><option value="MiB">MiB</option><option value="GiB">GiB</option><option value="TiB">TiB</option><option value="PiB">PiB</option></optgroup>
+                              <optgroup label="Dezimal (SI)"><option value="KB">KB</option><option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option><option value="PB">PB</option></optgroup>
                             </select>
                           </div>
                         </div>
@@ -713,6 +800,7 @@
                               value={bandwidthUnit} onChange={e => setBandwidthUnit(e.target.value)}
                               className="border-4 border-black p-3 font-black bg-white cursor-pointer"
                             >
+                              <option value="Kbit/s">Kbit/s</option>
                               <option value="Mbit/s">Mbit/s</option>
                               <option value="Gbit/s">Gbit/s</option>
                             </select>
@@ -733,15 +821,27 @@
 
                           {calcMode === 'size' && (
                             <select value={dataUnit} onChange={e => setDataUnit(e.target.value)} className="border-4 border-black p-2 font-black bg-white text-lg cursor-pointer">
-                              <option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option><option value="MiB">MiB</option><option value="GiB">GiB</option><option value="TiB">TiB</option>
+                              <option value="KB">KB</option><option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option><option value="PB">PB</option><option value="KiB">KiB</option><option value="MiB">MiB</option><option value="GiB">GiB</option><option value="TiB">TiB</option><option value="PiB">PiB</option>
                             </select>
                           )}
                           {calcMode === 'speed' && (
                             <select value={bandwidthUnit} onChange={e => setBandwidthUnit(e.target.value)} className="border-4 border-black p-2 font-black bg-white text-lg cursor-pointer">
-                              <option value="Mbit/s">Mbit/s</option><option value="Gbit/s">Gbit/s</option>
+                              <option value="Kbit/s">Kbit/s</option><option value="Mbit/s">Mbit/s</option><option value="Gbit/s">Gbit/s</option>
                             </select>
                           )}
                         </div>
+                      </div>
+
+                      {/* Rechenweg aufdecken (Glass-Box) */}
+                      <div className="mt-4 p-4 bg-slate-100 border-2 border-dashed border-slate-400 rotate-[-0.5deg]">
+                        <span className="text-[10px] font-black uppercase text-slate-500 block mb-2 tracking-widest">Rechenschritte:</span>
+                        <ul className="text-[11px] md:text-sm font-bold text-slate-700 space-y-1 font-mono">
+                          {calculationSteps.map((step, idx) => (
+                            <li key={idx} className={step.startsWith('->') ? 'pl-4 text-black' : 'text-slate-500 mt-2'}>
+                              {step}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   </div>
