@@ -165,7 +165,7 @@
         <motion.div
           layoutId={`formula-card-${id}`}
           onClick={() => setCalcMode(id)}
-          transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1.5 }}
+          transition={{ type: "spring", stiffness: 120, damping: 15, mass: 0.8 }}
           whileHover={{ scale: 1.08, cursor: 'pointer' }}
           whileTap={{ scale: 0.95 }}
           className={`
@@ -208,22 +208,22 @@
         isFraction = false;
       }
 
-      const slowSpring = { type: "spring", stiffness: 60, damping: 15, mass: 1.5 };
+      const slowSpring = { type: "spring", stiffness: 120, damping: 15, mass: 0.8 };
 
       return (
-        <div className="flex items-center justify-center gap-3 md:gap-10 w-full py-4 md:py-6">
+        <div className="flex items-center justify-center gap-3 md:gap-10 w-full py-4 md:py-6 min-h-[160px] md:min-h-[220px]">
           {/* Linke Seite: Gesuchte Variable */}
           <div className="flex flex-col items-center gap-1">
             <motion.span
               key={`gesucht-${target}`}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.4 }}
+              transition={{ duration: 0.2 }}
               className="text-[10px] md:text-xs font-black uppercase text-slate-400 mb-1"
             >
               Gesucht
             </motion.span>
-            <FormulaCard {...cardData[target]} isTarget={true} setCalcMode={setCalcMode} />
+            <FormulaCard key={`card-${target}`} {...cardData[target]} isTarget={true} setCalcMode={setCalcMode} />
           </div>
 
           {/* Gleichheitszeichen */}
@@ -236,18 +236,18 @@
           </motion.span>
 
           {/* Rechte Seite: Bruch oder Multiplikation */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             {isFraction ? (
               <motion.div
-                key="fraction-layout"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                key={`fraction-${calcMode}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
                 className="flex flex-col items-center"
               >
                 {/* Zähler */}
-                <FormulaCard {...cardData[numerator]} isTarget={false} setCalcMode={setCalcMode} />
+                <FormulaCard key={`card-${numerator}`} {...cardData[numerator]} isTarget={false} setCalcMode={setCalcMode} />
 
                 {/* Bruchstrich */}
                 <motion.div
@@ -260,18 +260,18 @@
                 />
 
                 {/* Nenner */}
-                <FormulaCard {...cardData[denominator]} isTarget={false} setCalcMode={setCalcMode} />
+                <FormulaCard key={`card-${denominator}`} {...cardData[denominator]} isTarget={false} setCalcMode={setCalcMode} />
               </motion.div>
             ) : (
               <motion.div
                 key="multiply-layout"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
                 className="flex items-center gap-3 md:gap-5"
               >
-                <FormulaCard {...cardData[factor1]} isTarget={false} setCalcMode={setCalcMode} />
+                <FormulaCard key={`card-${factor1}`} {...cardData[factor1]} isTarget={false} setCalcMode={setCalcMode} />
 
                 {/* Multiplikationszeichen */}
                 <motion.span
@@ -279,12 +279,12 @@
                   animate={{ scale: 1, rotate: 0 }}
                   exit={{ scale: 0, rotate: 180 }}
                   transition={slowSpring}
-                  className="font-black text-2xl md:text-5xl text-slate-800 select-none"
+                  className="font-black text-2xl md:text-5xl text-slate-800 select-none w-8 text-center"
                 >
                   ×
                 </motion.span>
 
-                <FormulaCard {...cardData[factor2]} isTarget={false} setCalcMode={setCalcMode} />
+                <FormulaCard key={`card-${factor2}`} {...cardData[factor2]} isTarget={false} setCalcMode={setCalcMode} />
               </motion.div>
             )}
           </AnimatePresence>
