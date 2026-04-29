@@ -132,6 +132,166 @@
       </span>
     );
 
+    const HandDrawnBox = ({ children, className = "" }) => (
+      <div className={`border-[3px] border-black p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-[4px] ${className}`}>
+        {children}
+      </div>
+    );
+
+    const DrawingGrid = ({ type, diff = 0 }) => {
+      const blocks = 100;
+      const extra = type === 'bin' ? Math.ceil(diff) : 0;
+      return (
+        <div className="flex flex-col items-center">
+          <span className="text-xs font-black uppercase mb-3 tracking-widest text-center h-4">
+            {type === 'si' ? 'Dezimal (SI)' : 'Binär (Real)'}
+          </span>
+          <div className="grid grid-cols-10 gap-0.5 md:gap-1 p-2 border-2 border-black bg-white">
+            {[...Array(blocks)].map((_, i) => (
+              <div key={i} className={`w-3 h-3 md:w-4 md:h-4 border border-black ${type === 'si' ? 'bg-emerald-200' : 'bg-amber-200'}`}></div>
+            ))}
+            {[...Array(extra)].map((_, i) => (
+              <div key={i} className="w-3 h-3 md:w-4 md:h-4 bg-black border border-black animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // Formel-Variablen-Karte — nutzt layoutId für Cross-Parent-Animation
+    const FormulaCard = ({ id, symbol, label, icon, color, isTarget, setCalcMode }) => {
+      const { motion } = window.Motion;
+      return (
+        <motion.div
+          layoutId={`formula-card-${id}`}
+          onClick={() => setCalcMode(id)}
+          transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1.5 }}
+          whileHover={{ scale: 1.08, cursor: 'pointer' }}
+          whileTap={{ scale: 0.95 }}
+          className={`
+            flex flex-col items-center justify-center border-[3px] md:border-4 border-black font-black text-center
+            px-3 py-2 md:px-5 md:py-3 min-w-[65px] md:min-w-[95px]
+            ${color}
+            ${isTarget
+              ? 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
+              : 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-95'}
+          `}
+        >
+          <div className="flex items-center gap-1 pointer-events-none">
+            {icon}
+          </div>
+          <span className="text-xl md:text-3xl font-black pointer-events-none mt-0.5 md:mt-1">{symbol}</span>
+          <span className="text-[8px] md:text-xs font-bold opacity-70 pointer-events-none mt-0.5 whitespace-nowrap">{label}</span>
+        </motion.div>
+      );
+    };
+
+    // Die Formel-Visualisierung — langsame, sichtbare Umstellungs-Animation
+    const FormulaDisplay = ({ calcMode, setCalcMode }) => {
+      const { motion, AnimatePresence } = window.Motion;
+      const cardData = {
+        size: { id: 'size', symbol: 'D', label: 'Datenmenge', icon: <HardDrive className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-blue-300' },
+        time: { id: 'time', symbol: 't', label: 'Zeit/Dauer', icon: <Clock className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-yellow-300' },
+        speed: { id: 'speed', symbol: 'v', label: 'Bandbreite', icon: <Wifi className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-emerald-300' },
+      };
+
+      // Bestimme die Formelstruktur
+      let target, numerator, denominator, factor1, factor2;
+      let isFraction = true;
+
+      if (calcMode === 'time') {
+        target = 'time'; numerator = 'size'; denominator = 'speed';
+      } else if (calcMode === 'speed') {
+        target = 'speed'; numerator = 'size'; denominator = 'time';
+      } else {
+        target = 'size'; factor1 = 'speed'; factor2 = 'time';
+        isFraction = false;
+      }
+
+      const slowSpring = { type: "spring", stiffness: 60, damping: 15, mass: 1.5 };
+
+      return (
+        <div className="flex items-center justify-center gap-3 md:gap-10 w-full py-4 md:py-6">
+          {/* Linke Seite: Gesuchte Variable */}
+          <div className="flex flex-col items-center gap-1">
+            <motion.span
+              key={`gesucht-${target}`}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.4 }}
+              className="text-[10px] md:text-xs font-black uppercase text-slate-400 mb-1"
+            >
+              Gesucht
+            </motion.span>
+            <FormulaCard {...cardData[target]} isTarget={true} setCalcMode={setCalcMode} />
+          </div>
+
+          {/* Gleichheitszeichen */}
+          <motion.span
+            layoutId="formula-equals"
+            transition={slowSpring}
+            className="font-black text-3xl md:text-6xl text-slate-800 select-none"
+          >
+            =
+          </motion.span>
+
+          {/* Rechte Seite: Bruch oder Multiplikation */}
+          <AnimatePresence mode="wait">
+            {isFraction ? (
+              <motion.div
+                key="fraction-layout"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-col items-center"
+              >
+                {/* Zähler */}
+                <FormulaCard {...cardData[numerator]} isTarget={false} setCalcMode={setCalcMode} />
+
+                {/* Bruchstrich */}
+                <motion.div
+                  layoutId="formula-operator-line"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  exit={{ scaleX: 0 }}
+                  transition={slowSpring}
+                  className="w-full h-[4px] md:h-[5px] bg-black my-2 rounded-full origin-center"
+                />
+
+                {/* Nenner */}
+                <FormulaCard {...cardData[denominator]} isTarget={false} setCalcMode={setCalcMode} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="multiply-layout"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex items-center gap-3 md:gap-5"
+              >
+                <FormulaCard {...cardData[factor1]} isTarget={false} setCalcMode={setCalcMode} />
+
+                {/* Multiplikationszeichen */}
+                <motion.span
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  exit={{ scale: 0, rotate: 180 }}
+                  transition={slowSpring}
+                  className="font-black text-2xl md:text-5xl text-slate-800 select-none"
+                >
+                  ×
+                </motion.span>
+
+                <FormulaCard {...cardData[factor2]} isTarget={false} setCalcMode={setCalcMode} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      );
+    };
+
     // 2. Die Haupt-Anwendung
     const App = () => {
       // Den Schieberegler stufenlos machen, damit er weich der Maus folgt
@@ -308,164 +468,6 @@
           `-> ${totalBytes.toLocaleString('de-DE', { maximumFractionDigits: 0 })} / ${ue.label} = ${resultDisplay} ${dataUnit}`
         ];
       }
-
-      const HandDrawnBox = ({ children, className = "" }) => (
-        <div className={`border-[3px] border-black p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-[4px] ${className}`}>
-          {children}
-        </div>
-      );
-
-      const DrawingGrid = ({ type, diff = 0 }) => {
-        const blocks = 100;
-        const extra = type === 'bin' ? Math.ceil(diff) : 0;
-        return (
-          <div className="flex flex-col items-center">
-            <span className="text-xs font-black uppercase mb-3 tracking-widest text-center h-4">
-              {type === 'si' ? 'Dezimal (SI)' : 'Binär (Real)'}
-            </span>
-            <div className="grid grid-cols-10 gap-0.5 md:gap-1 p-2 border-2 border-black bg-white">
-              {[...Array(blocks)].map((_, i) => (
-                <div key={i} className={`w-3 h-3 md:w-4 md:h-4 border border-black ${type === 'si' ? 'bg-emerald-200' : 'bg-amber-200'}`}></div>
-              ))}
-              {[...Array(extra)].map((_, i) => (
-                <div key={i} className="w-3 h-3 md:w-4 md:h-4 bg-black border border-black animate-pulse"></div>
-              ))}
-            </div>
-          </div>
-        );
-      };
-
-      // Formel-Variablen-Karte — nutzt layoutId für Cross-Parent-Animation
-      const FormulaCard = ({ id, symbol, label, icon, color, isTarget }) => (
-        <motion.div
-          layoutId={`formula-card-${id}`}
-          onClick={() => setCalcMode(id)}
-          transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1.5 }}
-          whileHover={{ scale: 1.08, cursor: 'pointer' }}
-          whileTap={{ scale: 0.95 }}
-          className={`
-            flex flex-col items-center justify-center border-[3px] md:border-4 border-black font-black text-center
-            px-3 py-2 md:px-5 md:py-3 min-w-[65px] md:min-w-[95px]
-            ${color}
-            ${isTarget
-              ? 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
-              : 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-95'}
-          `}
-        >
-          <div className="flex items-center gap-1 pointer-events-none">
-            {icon}
-          </div>
-          <span className="text-xl md:text-3xl font-black pointer-events-none mt-0.5 md:mt-1">{symbol}</span>
-          <span className="text-[8px] md:text-xs font-bold opacity-70 pointer-events-none mt-0.5 whitespace-nowrap">{label}</span>
-        </motion.div>
-      );
-
-      const { AnimatePresence } = window.Motion;
-
-      // Die Formel-Visualisierung — langsame, sichtbare Umstellungs-Animation
-      const FormulaDisplay = () => {
-        const cardData = {
-          size: { id: 'size', symbol: 'D', label: 'Datenmenge', icon: <HardDrive className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-blue-300' },
-          time: { id: 'time', symbol: 't', label: 'Zeit/Dauer', icon: <Clock className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-yellow-300' },
-          speed: { id: 'speed', symbol: 'v', label: 'Bandbreite', icon: <Wifi className="w-4 h-4 md:w-5 md:h-5" />, color: 'bg-emerald-300' },
-        };
-
-        // Bestimme die Formelstruktur
-        let target, numerator, denominator, factor1, factor2;
-        let isFraction = true;
-
-        if (calcMode === 'time') {
-          target = 'time'; numerator = 'size'; denominator = 'speed';
-        } else if (calcMode === 'speed') {
-          target = 'speed'; numerator = 'size'; denominator = 'time';
-        } else {
-          target = 'size'; factor1 = 'speed'; factor2 = 'time';
-          isFraction = false;
-        }
-
-        const slowSpring = { type: "spring", stiffness: 60, damping: 15, mass: 1.5 };
-
-        return (
-          <div className="flex items-center justify-center gap-3 md:gap-10 w-full py-4 md:py-6">
-            {/* Linke Seite: Gesuchte Variable */}
-            <div className="flex flex-col items-center gap-1">
-              <motion.span
-                key={`gesucht-${target}`}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-                className="text-[10px] md:text-xs font-black uppercase text-slate-400 mb-1"
-              >
-                Gesucht
-              </motion.span>
-              <FormulaCard {...cardData[target]} isTarget={true} />
-            </div>
-
-            {/* Gleichheitszeichen */}
-            <motion.span
-              layoutId="formula-equals"
-              transition={slowSpring}
-              className="font-black text-3xl md:text-6xl text-slate-800 select-none"
-            >
-              =
-            </motion.span>
-
-            {/* Rechte Seite: Bruch oder Multiplikation */}
-            <AnimatePresence mode="wait">
-              {isFraction ? (
-                <motion.div
-                  key="fraction-layout"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="flex flex-col items-center"
-                >
-                  {/* Zähler */}
-                  <FormulaCard {...cardData[numerator]} isTarget={false} />
-
-                  {/* Bruchstrich */}
-                  <motion.div
-                    layoutId="formula-operator-line"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    exit={{ scaleX: 0 }}
-                    transition={slowSpring}
-                    className="w-full h-[4px] md:h-[5px] bg-black my-2 rounded-full origin-center"
-                  />
-
-                  {/* Nenner */}
-                  <FormulaCard {...cardData[denominator]} isTarget={false} />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="multiply-layout"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="flex items-center gap-3 md:gap-5"
-                >
-                  <FormulaCard {...cardData[factor1]} isTarget={false} />
-
-                  {/* Multiplikationszeichen */}
-                  <motion.span
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, rotate: 180 }}
-                    transition={slowSpring}
-                    className="font-black text-2xl md:text-5xl text-slate-800 select-none"
-                  >
-                    ×
-                  </motion.span>
-
-                  <FormulaCard {...cardData[factor2]} isTarget={false} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        );
-      };
 
       // Handler um den Slider beim Loslassen magnetisch einrasten zu lassen
       const handleSliderRelease = () => {
@@ -765,7 +767,7 @@
                       👉 Klicke auf eine Variable, um die Formel nach ihr umzustellen!
                     </div>
 
-                    <FormulaDisplay />
+                    <FormulaDisplay calcMode={calcMode} setCalcMode={setCalcMode} />
                   </div>
 
                   {/* Aha Erlebnis */}
