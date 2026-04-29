@@ -398,10 +398,10 @@
         const ue = getUnitExpr(dataUnit);
         const dataBytes = dataAmount * ue.byteVal;
         const se = getSpeedExpr(bandwidthUnit);
-        const t = speed > 0 ? dataBits / speed : 0;
-        const h = Math.floor(t / 3600);
-        const m = Math.floor((t % 3600) / 60);
-        const s = Math.floor(t % 60);
+        const tExact = speed > 0 ? dataBits / speed : 0;
+        const h = Math.floor(tExact / 3600);
+        const m = Math.floor((tExact % 3600) / 60);
+        const s = Math.ceil(tExact % 60);
         resultDisplay = `${h > 0 ? h + 'h ' : ''}${m > 0 || h > 0 ? m + 'm ' : ''}${s}s`;
 
         ahaTitle = "Die klassische Bruch-Logik (Zeit)";
@@ -415,7 +415,7 @@
           `Schritt 3: Bandbreite in Bit/s umrechnen`,
           `-> ${bandwidth} ${bandwidthUnit} = ${bandwidth} × ${se.base} = ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s`,
           `Schritt 4: Dauer = Datenmenge / Bandbreite`,
-          `-> ${dataBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit / ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s = ${t.toFixed(2)} Sekunden`
+          `-> ${dataBits.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit / ${speed.toLocaleString('de-DE', { maximumFractionDigits: 0 })} Bit/s = ${tExact.toFixed(2)} s`
         ];
       }
       else if (calcMode === 'speed') {
